@@ -119,9 +119,19 @@ class UVAOffloader(BaseOffloader):
                 if not should_offload:
                     continue
 
-            cpu_data = p.data.to(device="cpu")
             if self.pin_memory:
-                cpu_data = cpu_data.pin_memory()
+                # Copy straight from the device into pinned memory; a pageable
+                # staging copy would double the host footprint of each tensor.
+                cpu_data = torch.empty_strided(
+                    p.data.size(),
+                    p.data.stride(),
+                    dtype=p.data.dtype,
+                    device="cpu",
+                    pin_memory=True,
+                )
+                cpu_data.copy_(p.data)
+            else:
+                cpu_data = p.data.to(device="cpu")
 
             if not self.uva_offloading:
                 p.data = cpu_data
